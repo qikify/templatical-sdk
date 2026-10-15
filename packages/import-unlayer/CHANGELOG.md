@@ -1,5 +1,14 @@
 # @templatical/import-unlayer
 
+## 0.47.0
+
+### Patch Changes
+
+- Updated dependencies [fb6c024]
+- Updated dependencies [f8018d8]
+- Updated dependencies [2797f5e]
+  - @templatical/types@0.47.0
+
 ## 0.46.0
 
 ### Patch Changes

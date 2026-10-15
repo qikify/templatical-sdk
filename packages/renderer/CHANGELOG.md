@@ -1,5 +1,35 @@
 # @templatical/renderer
 
+## 0.47.0
+
+### Minor Changes
+
+- f8018d8: Custom-block stylesheets now reach a render backend. The editor copies each definition's `stylesheet` onto its blocks as `renderedStylesheet` when it pre-renders `renderedHtml`, for a `render` provider's payload and before Cloud saves. `renderToMjml` emits those copies when no `getCustomBlockStylesheet` is passed, so `renderToMjml(payload.content)` keeps a custom block's media queries and hover rules with no extra wiring. A resolver, when passed, still decides every type.
+- 2797f5e: Sections and wrapper bands take a background image
+
+  There was no way to put an image behind content — a hero banner or a textured band needed an HTML block, and HTML blocks render inside `mj-text`, where a background can't reach the section.
+
+  `SectionBlock`, `SectionWrapper` and the layout `WrapperBlock` gain an optional `backgroundImage: BackgroundImage` — `{ url, size, position: { x, y }, repeat }`, with `size` one of `"cover"`, `"contain"` or `"auto"` and `position` a 9-point grid. It renders as MJML's `background-url`, `background-size`, `background-position` and `background-repeat` on the `mj-section` / `mj-wrapper`, which includes MJML's VML fallback for Outlook on Windows. The element's `backgroundColor` stays its fallback colour. Templates without an image render exactly as before.
+
+  The editor's Background panel gets an image control for sections, and the section wrapper settings get one for the band: a URL (merge tags, the media browser and drag-and-drop upload all work, as for image blocks), then Fill / Fit / Original, a position grid and a repeat toggle. The canvas paints the image through `resolveImageUrl` like image blocks do.
+
+  `createBackgroundImage()`, `resolveBackgroundImage()` and `encodeCssUrl()` are exported from `@templatical/types`, so the canvas and the renderer resolve images identically. `encodeCssUrl` percent-encodes the characters that could end a quoted CSS `url()`, because MJML pastes the URL verbatim into inline CSS.
+
+  `lintStructure` gains two warnings for Outlook on Windows: `structure.wrapper-color-over-background-image` (a wrapper colour paints over the section's image there) and `structure.nested-background-image` (an image on both the wrapper and its section breaks the layout there).
+
+  Outlook on Windows tiles an image at its original size (`auto`) from the top center, whatever the position and repeat settings. Importers don't map background images onto `backgroundImage` yet.
+
+### Patch Changes
+
+- fb6c024: The editor canvas shows a font with the same fallbacks as the email. A title, button, menu, table or countdown in a font the browser doesn't have, or a template font such as `Helvetica Neue`, used to preview in the browser's default serif while the email fell back to `defaultFallback` (`Arial, sans-serif` unless configured). The canvas, preview mode and the block previews now apply the renderer's own rule: a single unknown font previews as `'Helvetica Neue', Arial, sans-serif`, a built-in font as its stack, and a custom font with its fallback. `@templatical/types` exports the rule as `resolveFontStack`.
+
+  A custom font whose name contains an apostrophe, such as `Ma'am Sans`, now gets a valid `font-family` that reaches its fallback. It used to be emitted as `font-family: Ma'am Sans`, which mail clients drop.
+
+- Updated dependencies [fb6c024]
+- Updated dependencies [f8018d8]
+- Updated dependencies [2797f5e]
+  - @templatical/types@0.47.0
+
 ## 0.46.0
 
 ### Patch Changes

@@ -15,6 +15,54 @@ Installing or upgrading is covered in [Installation](/getting-started/installati
 
 ::: v-pre
 
+## 0.47.0
+
+<time datetime="2026-10-15">2026-10-15</time>
+
+### Features
+
+**Sections and wrapper bands take a background image**
+
+`@templatical/editor` · `@templatical/quality` · `@templatical/renderer` · `@templatical/template-tools` · `@templatical/types`
+
+There was no way to put an image behind content — a hero banner or a textured band needed an HTML block, and HTML blocks render inside `mj-text`, where a background can't reach the section.
+
+`SectionBlock`, `SectionWrapper` and the layout `WrapperBlock` gain an optional `backgroundImage: BackgroundImage` — `{ url, size, position: { x, y }, repeat }`, with `size` one of `"cover"`, `"contain"` or `"auto"` and `position` a 9-point grid. It renders as MJML's `background-url`, `background-size`, `background-position` and `background-repeat` on the `mj-section` / `mj-wrapper`, which includes MJML's VML fallback for Outlook on Windows. The element's `backgroundColor` stays its fallback colour. Templates without an image render exactly as before.
+
+The editor's Background panel gets an image control for sections, and the section wrapper settings get one for the band: a URL (merge tags, the media browser and drag-and-drop upload all work, as for image blocks), then Fill / Fit / Original, a position grid and a repeat toggle. The canvas paints the image through `resolveImageUrl` like image blocks do.
+
+`createBackgroundImage()`, `resolveBackgroundImage()` and `encodeCssUrl()` are exported from `@templatical/types`, so the canvas and the renderer resolve images identically. `encodeCssUrl` percent-encodes the characters that could end a quoted CSS `url()`, because MJML pastes the URL verbatim into inline CSS.
+
+`lintStructure` gains two warnings for Outlook on Windows: `structure.wrapper-color-over-background-image` (a wrapper colour paints over the section's image there) and `structure.nested-background-image` (an image on both the wrapper and its section breaks the layout there).
+
+Outlook on Windows tiles an image at its original size (`auto`) from the top center, whatever the position and repeat settings. Importers don't map background images onto `backgroundImage` yet.
+
+**Add `templatical custom-block validate|render|fetch` and `live --custom-block [--host]` for authoring custom block definitions. `validate` checks the definition against a generated `custom-block-schema.json`, cross-checks the Liquid template against its fields, lints the rendered HTML for email-client safety, and proves it renders through MJML. `checkCustomBlock` also takes the object a definition module exports, `dataSource` included, so the same check can run in your own tests. Accessibility warnings cover vague link text, links with no name, layout tables without `role="presentation"` and low contrast between inline colours. The live preview shows the block in its edge-case states, and with `--fetch` adds one filled from the real endpoint. That request, and the editor's Fetch button, run a preview-only `dataSourcePreview` recipe; the bridge makes those requests from Node, reading credentials from environment variables, so they never reach the page.**
+
+`@templatical/template-tools`
+
+The live bridge now answers only requests whose `Host` header is `localhost`, `127.0.0.1` or `[::1]` on its own port, in both modes, so a tunnel or proxy that rewrites the hostname gets a 403. A write carrying another site's `Origin` also gets a 403, and a `POST` must be `application/json`, so a web page open in the same browser can't post notes or content to it. In template mode, `live reload` now exits 1 and pushes nothing when the working file is missing or isn't valid JSON.
+
+**Custom-block stylesheets now reach a render backend. The editor copies each definition's `stylesheet` onto its blocks as `renderedStylesheet` when it pre-renders `renderedHtml`, for a `render` provider's payload and before Cloud saves. `renderToMjml` emits those copies when no `getCustomBlockStylesheet` is passed, so `renderToMjml(payload.content)` keeps a custom block's media queries and hover rules with no extra wiring. A resolver, when passed, still decides every type.**
+
+`@templatical/editor` · `@templatical/renderer` · `@templatical/types`
+
+**The editor canvas shows a font with the same fallbacks as the email. A title, button, menu, table or countdown in a font the browser doesn't have, or a template font such as `Helvetica Neue`, used to preview in the browser's default serif while the email fell back to `defaultFallback` (`Arial, sans-serif` unless configured). The canvas, preview mode and the block previews now apply the renderer's own rule: a single unknown font previews as `'Helvetica Neue', Arial, sans-serif`, a built-in font as its stack, and a custom font with its fallback. `@templatical/types` exports the rule as `resolveFontStack`.**
+
+`@templatical/editor` · `@templatical/renderer` · `@templatical/types`
+
+A custom font whose name contains an apostrophe, such as `Ma'am Sans`, now gets a valid `font-family` that reaches its fallback. It used to be emitted as `font-family: Ma'am Sans`, which mail clients drop.
+
+### Fixes and improvements
+
+**Dropping an image now shows the uploading state while it uploads. An image dropped on an image block on the canvas, its URL field in the sidebar, or a custom block's image field used to clear the drop overlay as soon as the upload started, so the spinner and "Uploading…" never appeared.**
+
+`@templatical/editor`
+
+**A top-level block dragged into a section column that already holds blocks now lands where it's dropped. It used to land at the top of the column whatever the drop position, because the column's drop index was counted with a selector only the canvas's own items match. Drops into an empty column, between columns and sections, out to the canvas and within the canvas are unchanged.**
+
+`@templatical/editor`
+
 ## 0.46.0
 
 <time datetime="2026-10-15">2026-10-15</time>
