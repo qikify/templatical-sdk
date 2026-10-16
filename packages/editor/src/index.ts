@@ -59,6 +59,7 @@ import {
   resolveRenderFonts,
 } from "./utils/renderProvider";
 import type { HtmlBlockPreviewConfig } from "./utils/resolveHtmlBlockPreview";
+import type { BlockSettingsSection } from "./types/block-settings";
 // Compiled-CSS-as-string for shadow root adoption. The `virtual:editor-css`
 // module is owned by `scripts/inline-style-css-plugin.ts` — at build time it
 // captures every emitted CSS asset (Tailwind utilities + every `.vue` SFC
@@ -364,6 +365,48 @@ export interface TemplaticalEditorConfig {
    */
   logicTags?: LogicTagsConfig;
   displayConditions?: DisplayConditionsConfig;
+  /**
+   * Your own sections in the block settings panel, shown below the built-in
+   * ones (Spacing, Background, Display, Display condition) for the selected
+   * block. The editor draws the collapsible frame — closed by default, like the
+   * built-in sections — and calls `mount` to fill it with your DOM:
+   *
+   * ```ts
+   * blockSettings: [
+   *   {
+   *     id: 'repeat',
+   *     title: 'Repeat',
+   *     appliesTo: (block) => block.type === 'section',
+   *     summary: (block) => (block as any).repeat?.over ?? null,
+   *     mount(el, ctx) {
+   *       const input = document.createElement('input');
+   *       input.value = (ctx.block as any).repeat?.over ?? '';
+   *       input.oninput = () =>
+   *         ctx.update({ repeat: input.value ? { over: input.value } : undefined });
+   *       el.append(input);
+   *       return ctx.onChange((block) => {
+   *         input.value = (block as any).repeat?.over ?? '';
+   *       });
+   *     },
+   *   },
+   * ]
+   * ```
+   *
+   * `ctx.update` goes through the editor's normal update path, so each edit is
+   * an Undo/Redo step and marks the template dirty. `ctx.onChange` also fires
+   * on Undo/Redo, which is how a section keeps its inputs in sync. Return a
+   * cleanup function from `mount` (here, `onChange`'s unsubscribe) to release
+   * what you set up.
+   *
+   * A section remounts when selection moves to another block, and unmounts when
+   * `appliesTo` returns `false`. An error thrown from `mount` or its cleanup is
+   * logged with the section's `id` and leaves the panel and the other sections
+   * working. Ids must be unique: a repeated `id` is warned about and skipped.
+   *
+   * The settings render inside the editor's shadow root by default, so give a
+   * section its CSS through `stylesheet` rather than the host page.
+   */
+  blockSettings?: BlockSettingsSection[];
   customBlocks?: CustomBlockDefinition[];
 
   /**
@@ -1269,6 +1312,7 @@ export async function initCloud(
       mergeTags: config.mergeTags,
       logicTags: config.logicTags,
       displayConditions: config.displayConditions,
+      blockSettings: config.blockSettings,
       resolvePreview: config.resolvePreview,
       lint: config.lint,
       onChange: config.onChange,
@@ -1376,6 +1420,10 @@ export type { ResolveImageUrl } from "./composables/useImageUrlResolver";
 export type { UseFontsReturn, FontOption } from "./composables/useFonts";
 export { useFonts } from "./composables/useFonts";
 export type { EditorCapabilities } from "./types/editor-capabilities";
+export type {
+  BlockSettingsContext,
+  BlockSettingsSection,
+} from "./types/block-settings";
 export type { HtmlBlockPreviewConfig } from "./utils/resolveHtmlBlockPreview";
 
 export {

@@ -72,6 +72,8 @@ import {
   CAN_DROP_MEDIA_KEY,
   DISPLAY_CONDITIONS_KEY,
   ALLOW_CUSTOM_CONDITIONS_KEY,
+  BLOCK_SETTINGS_SECTIONS_KEY,
+  CUSTOM_BLOCK_STYLESHEETS_KEY,
   CAPABILITIES_KEY,
   KEYBOARD_REORDER_KEY,
 } from '../src/keys';
@@ -96,6 +98,8 @@ const ALL_KEYS: Array<{ key: InjectionKey<unknown>; label: string }> = [
   { key: CAN_DROP_MEDIA_KEY, label: 'canDropMedia' },
   { key: DISPLAY_CONDITIONS_KEY, label: 'displayConditions' },
   { key: ALLOW_CUSTOM_CONDITIONS_KEY, label: 'allowCustomConditions' },
+  { key: BLOCK_SETTINGS_SECTIONS_KEY, label: 'blockSettingsSections' },
+  { key: CUSTOM_BLOCK_STYLESHEETS_KEY, label: 'customBlockStylesheets' },
   { key: CAPABILITIES_KEY, label: 'capabilities' },
   { key: KEYBOARD_REORDER_KEY, label: 'keyboardReorder' },
 ];
@@ -539,6 +543,66 @@ describe('useEditorCore', () => {
       });
       expect(captured.injected!.displayConditions).toEqual(conditions);
       expect(captured.injected!.allowCustomConditions).toBe(true);
+    });
+
+    it('provides an empty blockSettings list when not configured', () => {
+      const { captured } = mountCore();
+      expect(captured.injected!.blockSettingsSections).toEqual([]);
+    });
+
+    it('provides the configured blockSettings sections in order, as the same objects', () => {
+      const repeat = { id: 'repeat', title: 'Repeat', mount: () => {} };
+      const notes = { id: 'notes', title: 'Notes', mount: () => {} };
+      const { captured } = mountCore({
+        config: { blockSettings: [repeat, notes] },
+      });
+      const provided = captured.injected!.blockSettingsSections as unknown[];
+      expect(provided).toHaveLength(2);
+      expect(provided[0]).toBe(repeat);
+      expect(provided[1]).toBe(notes);
+    });
+
+    it('provides blockSettings with duplicate ids dropped (first wins) and warns once', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const first = { id: 'repeat', title: 'First', mount: () => {} };
+      const second = { id: 'repeat', title: 'Second', mount: () => {} };
+      const { captured } = mountCore({
+        config: { blockSettings: [first, second] },
+      });
+      const provided = captured.injected!.blockSettingsSections as unknown[];
+      expect(provided).toHaveLength(1);
+      expect(provided[0]).toBe(first);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0].join(' ')).toContain('"repeat"');
+      warn.mockRestore();
+    });
+
+    it('feeds blockSettings stylesheets into the custom-block stylesheet list', () => {
+      const { captured } = mountCore({
+        config: {
+          blockSettings: [
+            {
+              id: 'repeat',
+              title: 'Repeat',
+              stylesheet: '  .bs-repeat { display: flex; }  ',
+              mount: () => {},
+            },
+            { id: 'plain', title: 'Plain', mount: () => {} },
+          ],
+        },
+      });
+      const sheets = captured.injected!.customBlockStylesheets as {
+        value: string[];
+      };
+      expect(sheets.value).toEqual(['.bs-repeat { display: flex; }']);
+    });
+
+    it('provides no stylesheets when no blockSettings section ships one', () => {
+      const { captured } = mountCore();
+      const sheets = captured.injected!.customBlockStylesheets as {
+        value: string[];
+      };
+      expect(sheets.value).toEqual([]);
     });
 
     it('provides empty capabilities when not configured', () => {

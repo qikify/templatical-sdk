@@ -19,6 +19,12 @@ import type { UseBlockRegistryReturn } from "./useBlockRegistry";
  * types first appear in the content tree, depth-first through sections
  * and wrappers).
  *
+ * `extraStylesheets` are stylesheets that apply no matter what the content
+ * holds — today the `blockSettings` sections' CSS, which styles the settings
+ * panel rather than a block. They go through the same trim / skip-empty rules
+ * and are deduped against the custom-block entries by content; they come after
+ * the custom-block ones, in the order given.
+ *
  * Consumers render one `<style>` element per entry inside the editor's mount
  * root so the rules apply to the canvas. In shadow-DOM mode they scope to the
  * shadow root; in light-DOM mode they share the global stylesheet surface
@@ -27,25 +33,32 @@ import type { UseBlockRegistryReturn } from "./useBlockRegistry";
 export function useCustomBlockStylesheets(
   content: Ref<TemplateContent>,
   registry: UseBlockRegistryReturn,
+  extraStylesheets: readonly (string | undefined)[] = [],
 ): ComputedRef<string[]> {
   return computed(() => {
     const customTypes = collectUniqueCustomTypes(content.value.blocks);
-    if (customTypes.size === 0) {
+    if (customTypes.size === 0 && extraStylesheets.length === 0) {
       return [];
     }
 
     const seenContent = new Set<string>();
     const out: string[] = [];
 
-    for (const customType of customTypes) {
-      const css = registry.getDefinition(customType)?.stylesheet;
-      if (!css) continue;
+    const add = (css: string | undefined): void => {
+      if (!css) return;
 
       const trimmed = css.trim();
-      if (trimmed === "" || seenContent.has(trimmed)) continue;
+      if (trimmed === "" || seenContent.has(trimmed)) return;
 
       seenContent.add(trimmed);
       out.push(trimmed);
+    };
+
+    for (const customType of customTypes) {
+      add(registry.getDefinition(customType)?.stylesheet);
+    }
+    for (const css of extraStylesheets) {
+      add(css);
     }
 
     return out;

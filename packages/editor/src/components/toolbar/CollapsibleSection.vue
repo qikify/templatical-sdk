@@ -10,6 +10,12 @@ defineProps<{
    * address a section, and it is localized — which the e2e selector rules ban.
    */
   headerTestId?: string;
+  /**
+   * Optional one-line hint shown muted next to the title, also while the
+   * section is collapsed. Truncated when it does not fit; the title never
+   * shrinks for it. Null or empty renders nothing.
+   */
+  summary?: string | null;
 }>();
 
 defineEmits<{
@@ -34,7 +40,13 @@ defineEmits<{
         :size="12"
         :stroke-width="2"
       />
-      <span>{{ title }}</span>
+      <span :class="summary ? 'tpl:shrink-0' : undefined">{{ title }}</span>
+      <span
+        v-if="summary"
+        data-testid="collapsible-section-summary"
+        class="tpl:min-w-0 tpl:truncate tpl:text-xs tpl:font-normal tpl:text-[var(--tpl-text-muted)]"
+        >{{ summary }}</span
+      >
     </button>
     <div v-show="open" class="tpl:mt-3">
       <slot />

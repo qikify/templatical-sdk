@@ -4,7 +4,9 @@ import { CUSTOM_BLOCK_STYLESHEETS_KEY } from "../keys";
 
 /**
  * Renders one `<style>` tag per unique custom-block definition stylesheet
- * currently in use by the editor's content. Mounted near the top of
+ * currently in use by the editor's content, plus the `stylesheet` of every
+ * `blockSettings` section (those are always present, whatever the content
+ * holds). Mounted near the top of
  * `Editor.vue`'s root template so the rules sit early in the document order
  * and apply to the canvas.
  *

@@ -356,6 +356,7 @@ const core = useEditorCore({
     mergeTags: props.config.mergeTags,
     logicTags: props.config.logicTags,
     displayConditions: props.config.displayConditions,
+    blockSettings: props.config.blockSettings,
     // The synthesized Browse/drop handler. Null when neither a provider nor a
     // callback is configured, which is what keeps image fields URL-only.
     onRequestMedia: mediaFeature?.requestMedia ?? null,

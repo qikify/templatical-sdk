@@ -28,6 +28,7 @@ import type {
   ResolvePreview,
 } from "@templatical/types";
 import type { HtmlBlockPreviewConfig } from "../utils/resolveHtmlBlockPreview";
+import type { BlockSettingsSection } from "../types/block-settings";
 
 export interface TemplaticalCloudEditorConfig {
   container: string | HTMLElement;
@@ -210,6 +211,12 @@ export interface TemplaticalCloudEditorConfig {
   mergeTags?: MergeTagsConfig;
   logicTags?: LogicTagsConfig;
   displayConditions?: DisplayConditionsConfig;
+  /**
+   * Your own sections in the block settings panel, below the built-in ones.
+   * Each edit made through `ctx.update` is an Undo/Redo step. See
+   * `blockSettings` on the OSS editor config for the contract and an example.
+   */
+  blockSettings?: BlockSettingsSection[];
   customBlocks?: CustomBlockDefinition[];
 
   /**

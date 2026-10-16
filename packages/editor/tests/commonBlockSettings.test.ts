@@ -1,12 +1,17 @@
 // @vitest-environment happy-dom
 import "./dom-stubs";
-import { describe, expect, it } from "vitest";
-import { nextTick } from "vue";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { nextTick, ref } from "vue";
 import { createTitleBlock } from "@templatical/types";
 import type { DisplayCondition } from "@templatical/types";
 import CommonBlockSettings from "../src/components/toolbar/CommonBlockSettings.vue";
+import type {
+  BlockSettingsContext,
+  BlockSettingsSection,
+} from "../src/types/block-settings";
 import {
   ALLOW_CUSTOM_CONDITIONS_KEY,
+  BLOCK_SETTINGS_SECTIONS_KEY,
   DISPLAY_CONDITIONS_KEY,
   TRANSLATIONS_KEY,
 } from "../src/keys";
@@ -192,5 +197,264 @@ describe("CommonBlockSettings", () => {
         after: "{% endif %}",
       },
     });
+  });
+});
+
+describe("CommonBlockSettings custom sections", () => {
+  type TestSection = BlockSettingsSection & {
+    mount: ReturnType<typeof vi.fn>;
+  };
+
+  function makeSection(
+    id: string,
+    overrides: Partial<BlockSettingsSection> = {},
+  ): TestSection {
+    return {
+      id,
+      title: `Section ${id}`,
+      mount: vi.fn(),
+      ...overrides,
+    } as TestSection;
+  }
+
+  function mountWith(
+    block: ReturnType<typeof createTitleBlock>,
+    sections: BlockSettingsSection[],
+    provides: Record<symbol, unknown> = {},
+  ) {
+    return mountSettings(block, {
+      provides: { [BLOCK_SETTINGS_SECTIONS_KEY]: sections, ...provides },
+    });
+  }
+
+  function headers(wrapper: ReturnType<typeof mountEditor>): string[] {
+    // Section headers are the buttons with a label; the pickers' stub buttons
+    // inside an open section have none.
+    return wrapper
+      .findAll("button")
+      .map((b) => b.text())
+      .filter((text) => text !== "");
+  }
+
+  function ctxOf(section: TestSection, call = 0): BlockSettingsContext {
+    return section.mount.mock.calls[call][1] as BlockSettingsContext;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders after the display-condition section, in config order", () => {
+    const vip: DisplayCondition = { label: "VIP", before: "{% if vip %}" };
+    const wrapper = mountWith(
+      createTitleBlock(),
+      [makeSection("b"), makeSection("a")],
+      { [DISPLAY_CONDITIONS_KEY]: [vip] },
+    );
+
+    expect(headers(wrapper)).toEqual([
+      "Spacing",
+      "Background",
+      "Display",
+      "Display Condition",
+      "Section b",
+      "Section a",
+    ]);
+  });
+
+  it("renders after Display when there is no display-condition section", () => {
+    const wrapper = mountWith(createTitleBlock(), [makeSection("a")]);
+
+    expect(headers(wrapper)).toEqual([
+      "Spacing",
+      "Background",
+      "Display",
+      "Section a",
+    ]);
+  });
+
+  it("is identical to before when no sections are provided", () => {
+    const without = mountSettings(createTitleBlock());
+    const empty = mountWith(createTitleBlock(), []);
+
+    expect(headers(without)).toEqual(["Spacing", "Background", "Display"]);
+    expect(headers(empty)).toEqual(headers(without));
+    expect(empty.findAll("button")).toHaveLength(
+      without.findAll("button").length,
+    );
+  });
+
+  it("mounts each section with the block's own element and context", () => {
+    const block = createTitleBlock();
+    const a = makeSection("a");
+    const b = makeSection("b");
+    mountWith(block, [a, b]);
+
+    expect(a.mount).toHaveBeenCalledTimes(1);
+    expect(b.mount).toHaveBeenCalledTimes(1);
+    expect(a.mount.mock.calls[0][0]).not.toBe(b.mount.mock.calls[0][0]);
+    expect(ctxOf(a).block.id).toBe(block.id);
+  });
+
+  it("skips sections whose appliesTo is false and never mounts them", () => {
+    const block = createTitleBlock();
+    const hidden = makeSection("hidden", { appliesTo: vi.fn(() => false) });
+    const shown = makeSection("shown", { appliesTo: vi.fn(() => true) });
+    const wrapper = mountWith(block, [hidden, shown]);
+
+    expect(headers(wrapper)).toContain("Section shown");
+    expect(headers(wrapper)).not.toContain("Section hidden");
+    expect(hidden.mount).not.toHaveBeenCalled();
+    expect(shown.mount).toHaveBeenCalledTimes(1);
+    expect(hidden.appliesTo).toHaveBeenCalledWith(block);
+  });
+
+  it("unmounts and cleans up when appliesTo turns false at runtime", async () => {
+    const applies = ref(true);
+    const cleanup = vi.fn();
+    const section = makeSection("toggled", {
+      appliesTo: () => applies.value,
+      mount: vi.fn(() => cleanup) as BlockSettingsSection["mount"],
+    });
+    const wrapper = mountWith(createTitleBlock(), [section]);
+    expect(headers(wrapper)).toContain("Section toggled");
+
+    applies.value = false;
+    await nextTick();
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(headers(wrapper)).not.toContain("Section toggled");
+
+    applies.value = true;
+    await nextTick();
+    expect(section.mount).toHaveBeenCalledTimes(2);
+    expect(headers(wrapper)).toContain("Section toggled");
+  });
+
+  it("cleans up and remounts when another block is selected", async () => {
+    const first = createTitleBlock();
+    const second = createTitleBlock();
+    const cleanup = vi.fn();
+    const section = makeSection("per-block", {
+      mount: vi.fn(() => cleanup) as BlockSettingsSection["mount"],
+    });
+    const wrapper = mountWith(first, [section]);
+    const firstCtx = ctxOf(section, 0);
+    expect(firstCtx.block.id).toBe(first.id);
+
+    await wrapper.setProps({ block: second });
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(section.mount).toHaveBeenCalledTimes(2);
+    expect(ctxOf(section, 1).block.id).toBe(second.id);
+
+    // The stale context from the first block can no longer write to the second.
+    firstCtx.update({ repeat: undefined });
+    expect(wrapper.emitted("update")).toBeUndefined();
+  });
+
+  it("does not remount when the same block is updated", async () => {
+    const block = createTitleBlock();
+    const section = makeSection("stable");
+    const wrapper = mountWith(block, [section]);
+    const onChange = vi.fn();
+    ctxOf(section).onChange(onChange);
+
+    await wrapper.setProps({ block: { ...block, repeat: { over: "x" } } });
+
+    expect(section.mount).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards ctx.update as the update event", () => {
+    const section = makeSection("writer");
+    const wrapper = mountWith(createTitleBlock(), [section]);
+
+    ctxOf(section).update({ repeat: { over: "items", as: "item" } });
+
+    expect(wrapper.emitted("update")).toEqual([
+      [{ repeat: { over: "items", as: "item" } }],
+    ]);
+  });
+
+  it("keeps other sections working when one mount throws", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const broken = makeSection("broken", {
+      mount: vi.fn(() => {
+        throw new Error("nope");
+      }) as BlockSettingsSection["mount"],
+    });
+    const fine = makeSection("fine");
+    const wrapper = mountWith(createTitleBlock(), [broken, fine]);
+
+    expect(headers(wrapper)).toEqual(
+      expect.arrayContaining(["Section broken", "Section fine"]),
+    );
+    expect(fine.mount).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(String(error.mock.calls[0][1])).toContain("broken");
+  });
+
+  it("hides a section whose appliesTo throws and logs its id", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const bad = makeSection("bad-applies", {
+      appliesTo: () => {
+        throw new Error("nope");
+      },
+    });
+    const fine = makeSection("fine");
+    const wrapper = mountWith(createTitleBlock(), [bad, fine]);
+
+    expect(headers(wrapper)).not.toContain("Section bad-applies");
+    expect(headers(wrapper)).toContain("Section fine");
+    expect(bad.mount).not.toHaveBeenCalled();
+    expect(String(error.mock.calls[0][1])).toContain("bad-applies");
+  });
+
+  it("starts collapsed and opens on header click, per section id", async () => {
+    const a = makeSection("a");
+    const b = makeSection("b");
+    const wrapper = mountWith(createTitleBlock(), [a, b]);
+    const body = (section: TestSection) =>
+      (section.mount.mock.calls[0][0] as HTMLElement)
+        .parentElement as HTMLElement;
+
+    expect(body(a).style.display).toBe("none");
+    expect(body(b).style.display).toBe("none");
+
+    await wrapper
+      .get('[data-testid="block-settings-section-a"]')
+      .trigger("click");
+    expect(body(a).style.display).toBe("");
+    expect(body(b).style.display).toBe("none");
+
+    await wrapper
+      .get('[data-testid="block-settings-section-a"]')
+      .trigger("click");
+    expect(body(a).style.display).toBe("none");
+  });
+
+  it("keeps a section open across block changes like the built-in ones", async () => {
+    const section = makeSection("sticky");
+    const wrapper = mountWith(createTitleBlock(), [section]);
+    await wrapper
+      .get('[data-testid="block-settings-section-sticky"]')
+      .trigger("click");
+
+    await wrapper.setProps({ block: createTitleBlock() });
+
+    const el = section.mount.mock.calls[1][0] as HTMLElement;
+    expect((el.parentElement as HTMLElement).style.display).toBe("");
+  });
+
+  it("shows the section summary on the header while collapsed", () => {
+    const block = createTitleBlock();
+    const wrapper = mountWith(block, [
+      makeSection("s", { summary: (b) => `id: ${b.id}` }),
+    ]);
+
+    expect(
+      wrapper.get('[data-testid="collapsible-section-summary"]').text(),
+    ).toBe(`id: ${block.id}`);
   });
 });

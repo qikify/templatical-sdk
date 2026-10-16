@@ -2,6 +2,7 @@
 import ColorPicker from "../ColorPicker.vue";
 import SpacingControl from "../SpacingControl.vue";
 import ToggleSwitch from "../ToggleSwitch.vue";
+import BlockSettingsSectionHost from "./BlockSettingsSectionHost.vue";
 import CollapsibleSection from "./CollapsibleSection.vue";
 import { useI18n } from "../../composables/useI18n";
 import {
@@ -9,12 +10,15 @@ import {
   monoTextareaClass,
   primaryBtnClass,
 } from "../../constants/styleConstants";
+import type { BlockSettingsSection } from "../../types/block-settings";
+import { logger } from "../../utils/logger";
 import type { Block, DisplayCondition } from "@templatical/types";
 import { Monitor, Smartphone } from "@lucide/vue";
 import { computed, inject, reactive, ref, watch, type Component } from "vue";
 import {
   DISPLAY_CONDITIONS_KEY,
   ALLOW_CUSTOM_CONDITIONS_KEY,
+  BLOCK_SETTINGS_SECTIONS_KEY,
 } from "../../keys";
 
 type SectionKey = "spacing" | "bg" | "display" | "condition";
@@ -33,8 +37,10 @@ const { t } = useI18n();
 
 const displayConditions = inject(DISPLAY_CONDITIONS_KEY, []);
 const allowCustomConditions = inject(ALLOW_CUSTOM_CONDITIONS_KEY, false);
+const blockSettingsSections = inject(BLOCK_SETTINGS_SECTIONS_KEY, []);
 
 const openSections = reactive(new Set<SectionKey>());
+const openBlockSettingsSections = reactive(new Set<string>());
 const customConditionMode = ref(false);
 const customBefore = ref("");
 const customAfter = ref("");
@@ -53,8 +59,29 @@ function toggleSection(key: SectionKey): void {
   else openSections.add(key);
 }
 
+function toggleBlockSettingsSection(id: string): void {
+  if (openBlockSettingsSections.has(id)) openBlockSettingsSections.delete(id);
+  else openBlockSettingsSections.add(id);
+}
+
+function appliesToBlock(section: BlockSettingsSection): boolean {
+  try {
+    return section.appliesTo?.(props.block) ?? true;
+  } catch (error) {
+    logger.error(
+      `Block settings section "${section.id}" appliesTo() threw.`,
+      error,
+    );
+    return false;
+  }
+}
+
 const hasDisplayConditions = computed(
   () => displayConditions.length > 0 || allowCustomConditions,
+);
+
+const visibleBlockSettingsSections = computed(() =>
+  blockSettingsSections.filter(appliesToBlock),
 );
 
 const isCustomCondition = computed(() => {
@@ -313,5 +340,15 @@ function toggleVisibility(key: VisibilityKey): void {
         </template>
       </div>
     </CollapsibleSection>
+
+    <BlockSettingsSectionHost
+      v-for="section in visibleBlockSettingsSections"
+      :key="`${section.id}:${block.id}`"
+      :section="section"
+      :block="block"
+      :open="openBlockSettingsSections.has(section.id)"
+      @toggle="toggleBlockSettingsSection(section.id)"
+      @update="emit('update', $event)"
+    />
   </div>
 </template>

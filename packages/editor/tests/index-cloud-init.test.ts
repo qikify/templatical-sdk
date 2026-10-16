@@ -206,6 +206,24 @@ describe("initCloud — a thin wrapper over init()", () => {
     expect(config.media).toBe(fakeProviders.media);
   });
 
+  it("forwards blockSettings into the init() config", async () => {
+    const blockSettings = [{ id: "repeat", title: "Repeat", mount: vi.fn() }];
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const p = initCloudFn(cloudConfig(container, { blockSettings }));
+    await vi.waitFor(() => expect(captured.props).not.toBeNull());
+    await p;
+
+    const config = captured.props!.config as Record<string, unknown>;
+    expect(config.blockSettings).toBe(blockSettings);
+  });
+
+  it("leaves blockSettings unset when the consumer passed none", async () => {
+    await mountCloud(null);
+    const config = captured.props!.config as Record<string, unknown>;
+    expect(config.blockSettings).toBeUndefined();
+  });
+
   it("forwards onRequestMedia as the UI override", async () => {
     const onRequestMedia = vi.fn();
     const container = document.createElement("div");

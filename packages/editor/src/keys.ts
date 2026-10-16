@@ -35,6 +35,7 @@ import type { ImageUrlResolver } from "./composables/useImageUrlResolver";
 import type { UseFontsReturn } from "./composables/useFonts";
 import type { UseBlockRegistryReturn } from "./composables/useBlockRegistry";
 import type { UseKeyboardReorderReturn } from "./composables/useKeyboardReorder";
+import type { BlockSettingsSection } from "./types/block-settings";
 import type { EditorCapabilities } from "./types/editor-capabilities";
 import type { OnRequestMedia } from "./index";
 
@@ -340,6 +341,20 @@ export const DISPLAY_CONDITIONS_KEY: InjectionKey<DisplayCondition[]> =
 export const ALLOW_CUSTOM_CONDITIONS_KEY: InjectionKey<boolean> = Symbol(
   "allowCustomConditions",
 );
+
+/**
+ * The consumer's `config.blockSettings` sections, already resolved by
+ * `resolveBlockSettingsSections` — duplicate ids dropped (first wins), config
+ * order kept. A plain array, not a ref: the config is read once at setup.
+ * Provided by `useEditorCore`, consumed by `CommonBlockSettings.vue`, which
+ * renders them below the built-in sections without filtering again.
+ *
+ * Always provided; an editor with nothing configured provides `[]`. Consumers
+ * inject with `[]` as the default for headless callers and tests.
+ */
+export const BLOCK_SETTINGS_SECTIONS_KEY: InjectionKey<
+  readonly BlockSettingsSection[]
+> = Symbol("blockSettingsSections");
 
 export const CAPABILITIES_KEY: InjectionKey<EditorCapabilities> =
   Symbol("capabilities");

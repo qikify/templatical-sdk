@@ -57,6 +57,7 @@ import {
 } from "./usePreviewResolution";
 import type { Translations } from "../i18n";
 import type { OnRequestMedia } from "../index";
+import type { BlockSettingsSection } from "../types/block-settings";
 import type { EditorCapabilities } from "../types/editor-capabilities";
 import {
   TRANSLATIONS_KEY,
@@ -79,6 +80,7 @@ import {
   COLORS_KEY,
   TEMPLATE_SETTINGS_FIELDS_KEY,
   CUSTOM_BLOCK_STYLESHEETS_KEY,
+  BLOCK_SETTINGS_SECTIONS_KEY,
   MERGE_TAGS_KEY,
   MERGE_TAG_SHOW_RAW_VALUE_KEY,
   MERGE_TAG_SYNTAX_KEY,
@@ -145,6 +147,7 @@ import { localizedBlockDefaults } from "../utils/localizedBlockDefaults";
 import { localizedContentDefaults } from "../i18n/contentDefaults";
 import { collectColorFieldIssues } from "../utils/collectColorFieldIssues";
 import { logger } from "../utils/logger";
+import { resolveBlockSettingsSections } from "../utils/resolveBlockSettingsSections";
 import { handleEditorKeydown } from "../utils/keyboardShortcuts";
 
 // Block components — shared between OSS and Cloud editors
@@ -253,6 +256,7 @@ export interface UseEditorCoreOptions {
     mergeTags?: MergeTagsConfig;
     logicTags?: LogicTagsConfig;
     displayConditions?: DisplayConditionsConfig;
+    blockSettings?: BlockSettingsSection[];
     onRequestMedia?: OnRequestMedia | null;
     canDropMedia?: ComputedRef<boolean> | null;
     resolvePreview?: ResolvePreview;
@@ -656,10 +660,25 @@ export function useEditorCore(
   // `<CustomBlockStylesheets>` component reads this and renders `<style>` tags
   // into the editor root so authored CSS previews live in the canvas. The
   // renderer's `getCustomBlockStylesheet` resolver covers the export path.
+  //
+  // `blockSettings` section stylesheets ride the same list (and the same
+  // `<style>` tags): they style the settings panel, not a block, so they are
+  // always included rather than tied to which custom blocks are in the content.
+  const blockSettingsSections = resolveBlockSettingsSections(
+    config.blockSettings,
+  );
   provide(
     CUSTOM_BLOCK_STYLESHEETS_KEY,
-    useCustomBlockStylesheets(editor.content, registry),
+    useCustomBlockStylesheets(
+      editor.content,
+      registry,
+      blockSettingsSections.map((section) => section.stylesheet),
+    ),
   );
+  // The resolved `blockSettings` sections the panel renders below Display
+  // condition. Always provided (`[]` when unconfigured) so the panel never has
+  // to tell "not configured" from "headless".
+  provide(BLOCK_SETTINGS_SECTIONS_KEY, blockSettingsSections);
 
   const mergeTagSyntax = resolveSyntax(config.mergeTags?.syntax);
 
